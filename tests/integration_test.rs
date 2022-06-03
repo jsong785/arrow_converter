@@ -57,7 +57,6 @@ fn json_to_json() -> Result<()> {
     let mut writer = create_writer(Type::Json, buffer.clone())?.unwrap();
 
     pipe(&mut reader, &mut writer)?;
-    writer.finish()?;
     assert_eq!(
         expected,
         std::str::from_utf8(&buffer.writer.borrow()).unwrap()
@@ -81,7 +80,6 @@ fn json_to_csv() -> Result<()> {
     let mut writer = create_writer(Type::Csv, buffer.clone())?.unwrap();
 
     pipe(&mut reader, &mut writer)?;
-    writer.finish()?;
     assert_eq!(
         expected,
         std::str::from_utf8(&buffer.writer.borrow()).unwrap()
@@ -99,7 +97,6 @@ fn csv_to_csv() -> Result<()> {
     let mut writer = create_writer(Type::Csv, buffer.clone())?.unwrap();
 
     pipe(&mut reader, &mut writer)?;
-    writer.finish()?;
     assert_eq!(csv, std::str::from_utf8(&buffer.writer.borrow()).unwrap());
     Ok(())
 }
@@ -120,7 +117,6 @@ fn csv_to_json() -> Result<()> {
     let mut writer = create_writer(Type::Json, buffer.clone())?.unwrap();
 
     pipe(&mut reader, &mut writer)?;
-    writer.finish()?;
     assert_eq!(
         expected,
         std::str::from_utf8(&buffer.writer.borrow()).unwrap()

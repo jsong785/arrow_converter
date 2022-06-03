@@ -6,5 +6,6 @@ pub fn pipe<T: std::io::Write>(
     reader: &mut Box<dyn std::iter::Iterator<Item = Result<RecordBatch>>>,
     writer: &mut Box<dyn Writer<InnerType = T>>,
 ) -> Result<()> {
-    reader.try_for_each(|batch| -> Result<()> { writer.write(batch?) })
+    reader.try_for_each(|batch| -> Result<()> { writer.write(batch?) })?;
+    writer.finish()
 }
