@@ -1,4 +1,4 @@
-use clap::{ Args, ArgEnum };
+use clap::{ArgEnum, Args};
 
 #[derive(ArgEnum, Clone, Debug)]
 pub enum Type {

@@ -3,14 +3,17 @@ use arrow::record_batch::RecordBatch;
 
 use crate::types::Type;
 
-pub trait Writer{
+pub trait Writer {
     type InnerType;
 
     fn write(&mut self, batches: RecordBatch) -> Result<()>;
     fn finish(&mut self) -> Result<()>;
 }
 
-pub fn create_writer<'a, W: std::io::Write + 'a>(t: Type, w: W) -> Result<Option<Box< dyn 'a + Writer<InnerType = W>>>> {
+pub fn create_writer<'a, W: std::io::Write + 'a>(
+    t: Type,
+    w: W,
+) -> Result<Option<Box<dyn 'a + Writer<InnerType = W>>>> {
     match t {
         Type::Csv => Ok(Some(Box::new(csv::create_writer(w, None)?))),
         Type::Json => Ok(Some(Box::new(json::create_writer(w, None)?))),
@@ -42,20 +45,26 @@ pub(super) mod csv {
         }
     }
 
-    pub(super) fn create_writer<W: Write>(writer: W, schema: Option<SchemaRef>) -> Result<CsvWriter<W>> {
+    pub(super) fn create_writer<W: Write>(
+        writer: W,
+        schema_ref: Option<SchemaRef>,
+    ) -> Result<CsvWriter<W>> {
         use arrow::csv::writer::WriterBuilder;
         let builder = WriterBuilder::new().has_headers(true);
-        Ok(CsvWriter{ schema: schema, writer: builder.build(writer) })
+        Ok(CsvWriter {
+            schema: schema_ref,
+            writer: builder.build(writer),
+        })
     }
 }
 
 pub(super) mod json {
 
     use anyhow::Result;
-    use arrow::json::writer::LineDelimitedWriter;
-    use std::io::Write;
     use arrow::datatypes::SchemaRef;
+    use arrow::json::writer::LineDelimitedWriter;
     use arrow::record_batch::RecordBatch;
+    use std::io::Write;
     pub(super) struct JsonWriter<W: Write> {
         pub(super) schema: Option<SchemaRef>,
         pub(super) writer: LineDelimitedWriter<W>,
@@ -73,14 +82,19 @@ pub(super) mod json {
         }
     }
 
-    pub(super) fn create_writer<W: Write>(writer: W, schema: Option<SchemaRef>) -> Result<JsonWriter<W>> {
-        Ok(JsonWriter{ schema: schema, writer: LineDelimitedWriter::new(writer) })
+    pub(super) fn create_writer<W: Write>(
+        writer: W,
+        schema_ref: Option<SchemaRef>,
+    ) -> Result<JsonWriter<W>> {
+        Ok(JsonWriter {
+            schema: schema_ref,
+            writer: LineDelimitedWriter::new(writer),
+        })
     }
-
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
 
     #[test]

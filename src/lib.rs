@@ -1,11 +1,11 @@
-pub mod convert_to_arrow;
 pub mod convert_from_arrow;
 pub mod convert_pipe;
+pub mod convert_to_arrow;
 pub mod types;
 
+use crate::types::File;
 use anyhow::Result;
 use clap::Parser;
-use crate::types::File;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
