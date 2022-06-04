@@ -38,7 +38,7 @@ pub mod csv {
         pub has_header: bool,
     }
 
-    pub fn create_reader(info: &FileInfo) -> Result<Reader<std::fs::File>> {
+    pub(crate) fn create_reader(info: &FileInfo) -> Result<Reader<std::fs::File>> {
         use std::fs::File;
         create_reader_with_buffer(File::open(&info.file_name)?, info)
     }
@@ -69,7 +69,7 @@ pub mod json {
         pub schema: Option<SchemaRef>,
     }
 
-    pub fn create_reader(info: &FileInfo) -> Result<Reader<std::fs::File>> {
+    pub(crate) fn create_reader(info: &FileInfo) -> Result<Reader<std::fs::File>> {
         use std::fs::File;
         create_reader_with_buffer(File::open(&info.file_name)?, info)
     }

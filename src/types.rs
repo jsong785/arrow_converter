@@ -20,4 +20,3 @@ pub struct File {
     //#[clap(arg_enum)]
     pub method: Type,
 }
-

@@ -12,7 +12,7 @@ pub mod csv {
     use arrow::csv::writer::Writer;
     use std::io::Write;
 
-    pub struct CsvWriter<W: Write> {
+    pub(crate) struct CsvWriter<W: Write> {
         pub writer: Writer<W>,
     }
     use arrow::record_batch::RecordBatch;
@@ -32,7 +32,7 @@ pub mod csv {
         pub has_headers: bool,
     }
 
-    pub fn create_writer(info: &FileInfo) -> Result<CsvWriter<std::fs::File>> {
+    pub(crate) fn create_writer(info: &FileInfo) -> Result<CsvWriter<std::fs::File>> {
         use std::fs::File;
         create_writer_with_buffer(File::create(&info.file_name)?, info)
     }
@@ -55,7 +55,7 @@ pub mod json {
     use arrow::json::writer::LineDelimitedWriter;
     use arrow::record_batch::RecordBatch;
     use std::io::Write;
-    pub struct JsonWriter<W: Write> {
+    pub(crate) struct JsonWriter<W: Write> {
         pub(super) writer: LineDelimitedWriter<W>,
     }
     impl<W: Write> super::Writer for JsonWriter<W> {
@@ -74,7 +74,7 @@ pub mod json {
         pub file_name: String,
     }
 
-    pub fn create_writer(info: &FileInfo) -> Result<JsonWriter<std::fs::File>> {
+    pub(crate) fn create_writer(info: &FileInfo) -> Result<JsonWriter<std::fs::File>> {
         use std::fs::File;
         create_writer_with_buffer(File::create(&info.file_name)?)
     }
