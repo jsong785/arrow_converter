@@ -1,7 +1,9 @@
 use anyhow::Result;
-use arrow_converter::convert_from_arrow::create_writer;
-use arrow_converter::convert_pipe::pipe;
-use arrow_converter::convert_to_arrow::create_reader;
+use arrow_converter::convert_from_arrow;
+use arrow_converter::convert_from_arrow::Writer;
+use arrow_converter::convert_to_arrow;
+use arrow_converter::types::create_reader_with_buffer;
+use arrow_converter::types::create_writer_with_buffer;
 use arrow_converter::types::Type;
 use std::cell::RefCell;
 use std::io::Cursor;
@@ -36,6 +38,14 @@ impl<W: std::io::Write> std::clone::Clone for TestBuffer<W> {
     }
 }
 
+use arrow::record_batch::RecordBatch;
+fn pipe(
+    r: &mut Box<dyn std::iter::Iterator<Item = Result<RecordBatch>>>,
+    w: &mut Box<dyn Writer>,
+) -> Result<()> {
+    r.try_for_each(|batch| w.write(batch?))
+}
+
 #[test]
 fn json_to_json() -> Result<()> {
     let js = concat!(
@@ -51,10 +61,24 @@ fn json_to_json() -> Result<()> {
         "\n"
     );
 
-    let mut reader = create_reader(Type::Json, Cursor::new(js))?.unwrap();
+    let mut reader = create_reader_with_buffer(
+        Type::Json(
+            convert_to_arrow::json::FileInfo::default(),
+            convert_from_arrow::json::FileInfo::default(),
+        ),
+        Cursor::new(js),
+    )?
+    .unwrap();
 
     let buffer = TestBuffer::new(Vec::new());
-    let mut writer = create_writer(Type::Json, buffer.clone())?.unwrap();
+    let mut writer = create_writer_with_buffer(
+        Type::Json(
+            convert_to_arrow::json::FileInfo::default(),
+            convert_from_arrow::json::FileInfo::default(),
+        ),
+        buffer.clone(),
+    )?
+    .unwrap();
 
     pipe(&mut reader, &mut writer)?;
     assert_eq!(
@@ -74,10 +98,27 @@ fn json_to_csv() -> Result<()> {
     );
     let expected = "a,b,c,d\n1,2.0,foo,false\n4,-5.5,,true\n";
 
-    let mut reader = create_reader(Type::Json, Cursor::new(js))?.unwrap();
+    let mut reader = create_reader_with_buffer(
+        Type::Json(
+            convert_to_arrow::json::FileInfo::default(),
+            convert_from_arrow::json::FileInfo::default(),
+        ),
+        Cursor::new(js),
+    )?
+    .unwrap();
 
     let buffer = TestBuffer::new(Vec::new());
-    let mut writer = create_writer(Type::Csv, buffer.clone())?.unwrap();
+    let mut writer = create_writer_with_buffer(
+        Type::Csv(
+            convert_to_arrow::csv::FileInfo::default(),
+            convert_from_arrow::csv::FileInfo {
+                has_headers: true,
+                ..Default::default()
+            },
+        ),
+        buffer.clone(),
+    )?
+    .unwrap();
 
     pipe(&mut reader, &mut writer)?;
     assert_eq!(
@@ -91,10 +132,24 @@ fn json_to_csv() -> Result<()> {
 fn csv_to_csv() -> Result<()> {
     let csv = "a,b,c,d\n1,2.0,foo,false\n4,-5.5,,true\n";
 
-    let mut reader = create_reader(Type::Csv, Cursor::new(csv))?.unwrap();
+    let mut reader = create_reader_with_buffer(
+        Type::Csv(
+            convert_to_arrow::csv::FileInfo::default(),
+            convert_from_arrow::csv::FileInfo::default(),
+        ),
+        Cursor::new(csv),
+    )?
+    .unwrap();
 
     let buffer = TestBuffer::new(Vec::new());
-    let mut writer = create_writer(Type::Csv, buffer.clone())?.unwrap();
+    let mut writer = create_writer_with_buffer(
+        Type::Csv(
+            convert_to_arrow::csv::FileInfo::default(),
+            convert_from_arrow::csv::FileInfo::default(),
+        ),
+        buffer.clone(),
+    )?
+    .unwrap();
 
     pipe(&mut reader, &mut writer)?;
     assert_eq!(csv, std::str::from_utf8(&buffer.writer.borrow()).unwrap());
@@ -111,10 +166,27 @@ fn csv_to_json() -> Result<()> {
         "\n"
     );
 
-    let mut reader = create_reader(Type::Csv, Cursor::new(csv))?.unwrap();
+    let mut reader = create_reader_with_buffer(
+        Type::Csv(
+            convert_to_arrow::csv::FileInfo {
+                has_header: true,
+                ..Default::default()
+            },
+            convert_from_arrow::csv::FileInfo::default(),
+        ),
+        Cursor::new(csv),
+    )?
+    .unwrap();
 
     let buffer = TestBuffer::new(Vec::new());
-    let mut writer = create_writer(Type::Json, buffer.clone())?.unwrap();
+    let mut writer = create_writer_with_buffer(
+        Type::Json(
+            convert_to_arrow::json::FileInfo::default(),
+            convert_from_arrow::json::FileInfo::default(),
+        ),
+        buffer.clone(),
+    )?
+    .unwrap();
 
     pipe(&mut reader, &mut writer)?;
     assert_eq!(
