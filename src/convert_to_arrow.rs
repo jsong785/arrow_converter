@@ -13,13 +13,13 @@ impl<T: std::iter::Iterator<Item = arrow::error::Result<RecordBatch>>> Iterator
     type Item = Result<RecordBatch>;
     fn next(&mut self) -> Option<Self::Item> {
         match self.inner.next() {
-            Some(inner) => unsafe {
+            Some(inner) => {
                 if inner.is_ok() {
-                    Some(Ok(inner.unwrap_unchecked()))
+                    unsafe { Some(Ok(inner.unwrap_unchecked())) }
                 } else {
-                    Some(Err(inner.unwrap_err_unchecked().into()))
+                    unsafe { Some(Err(inner.unwrap_err_unchecked().into())) }
                 }
-            },
+            }
             None => None,
         }
     }
