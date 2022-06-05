@@ -13,7 +13,7 @@ pub mod csv {
     use std::io::Write;
 
     pub(crate) struct CsvWriter<W: Write> {
-        pub writer: Writer<W>,
+        writer: Writer<W>,
     }
     use arrow::record_batch::RecordBatch;
     impl<W: Write> super::Writer for CsvWriter<W> {
@@ -56,7 +56,7 @@ pub mod json {
     use arrow::record_batch::RecordBatch;
     use std::io::Write;
     pub(crate) struct JsonWriter<W: Write> {
-        pub(super) writer: LineDelimitedWriter<W>,
+        writer: LineDelimitedWriter<W>,
     }
     impl<W: Write> super::Writer for JsonWriter<W> {
         fn write(&mut self, batches: RecordBatch) -> Result<()> {
@@ -84,4 +84,8 @@ pub mod json {
             writer: LineDelimitedWriter::new(writer),
         })
     }
+}
+
+pub mod parquet {
+
 }
