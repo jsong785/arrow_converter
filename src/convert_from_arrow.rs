@@ -6,17 +6,18 @@ pub trait Writer {
     fn finish(&mut self) -> Result<()>;
 }
 
+pub trait WriteBuffer: std::io::Write {}
+impl<T: std::io::Write> WriteBuffer for T {}
+
 pub mod csv {
+    use super::{WriteBuffer, Writer};
     use anyhow::Result;
 
-    use arrow::csv::writer::Writer;
-    use std::io::Write;
-
-    pub(crate) struct CsvWriter<W: Write> {
-        writer: Writer<W>,
+    pub(crate) struct CsvWriter<W: WriteBuffer> {
+        writer: arrow::csv::writer::Writer<W>,
     }
     use arrow::record_batch::RecordBatch;
-    impl<W: Write> super::Writer for CsvWriter<W> {
+    impl<W: WriteBuffer> Writer for CsvWriter<W> {
         fn write(&mut self, batches: RecordBatch) -> Result<()> {
             self.writer.write(&batches)?;
             Ok(())
@@ -26,23 +27,17 @@ pub mod csv {
         }
     }
 
-    #[derive(Default)]
-    pub struct FileInfo {
-        pub file_name: String,
+    #[derive(Default, Debug)]
+    pub struct Options {
         pub has_headers: bool,
     }
 
-    pub(crate) fn create_writer(info: &FileInfo) -> Result<CsvWriter<std::fs::File>> {
-        use std::fs::File;
-        create_writer_with_buffer(File::create(&info.file_name)?, info)
-    }
-
-    pub(crate) fn create_writer_with_buffer<W: std::io::Write>(
-        writer: W,
-        info: &FileInfo,
-    ) -> Result<CsvWriter<W>> {
+    pub(crate) fn create_writer(
+        writer: impl WriteBuffer,
+        options: &Options,
+    ) -> Result<impl Writer> {
         use arrow::csv::writer::WriterBuilder;
-        let builder = WriterBuilder::new().has_headers(info.has_headers);
+        let builder = WriterBuilder::new().has_headers(options.has_headers);
         Ok(CsvWriter {
             writer: builder.build(writer),
         })
@@ -51,14 +46,15 @@ pub mod csv {
 
 pub mod json {
 
+    use super::{WriteBuffer, Writer};
     use anyhow::Result;
     use arrow::json::writer::LineDelimitedWriter;
     use arrow::record_batch::RecordBatch;
-    use std::io::Write;
-    pub(crate) struct JsonWriter<W: Write> {
+
+    pub(crate) struct JsonWriter<W: WriteBuffer> {
         writer: LineDelimitedWriter<W>,
     }
-    impl<W: Write> super::Writer for JsonWriter<W> {
+    impl<W: WriteBuffer> Writer for JsonWriter<W> {
         fn write(&mut self, batches: RecordBatch) -> Result<()> {
             self.writer.write(batches)?;
             Ok(())
@@ -69,21 +65,9 @@ pub mod json {
         }
     }
 
-    #[derive(Default)]
-    pub struct FileInfo {
-        pub file_name: String,
-    }
-
-    pub(crate) fn create_writer(info: &FileInfo) -> Result<JsonWriter<std::fs::File>> {
-        use std::fs::File;
-        create_writer_with_buffer(File::create(&info.file_name)?)
-    }
-
-    pub(crate) fn create_writer_with_buffer<W: Write>(writer: W) -> Result<JsonWriter<W>> {
+    pub(crate) fn create_writer(writer: impl WriteBuffer) -> Result<impl Writer> {
         Ok(JsonWriter {
             writer: LineDelimitedWriter::new(writer),
         })
     }
 }
-
-pub mod parquet {}
