@@ -1,9 +1,9 @@
 pub mod reader;
-pub mod writer;
 pub mod types;
+pub mod writer;
 
-use crate::writer::{WriteBuffer, Writer};
 use crate::reader::{ReadBuffer, Reader};
+use crate::writer::{WriteBuffer, Writer};
 use anyhow::Result;
 use clap::Parser;
 use types::Type;
@@ -35,8 +35,8 @@ impl Cli {
         let itype = infer_type(&self.input, &self.input_type)?;
         let otype = infer_type(&self.output, &self.output_type)?;
 
-        let inputsource = get_input(&self.input, self.input_as_stream);
-        let outputsource = get_output(&self.output, self.output_as_stream);
+        let inputsource = get_input(&self.input, self.input_as_stream)?;
+        let outputsource = get_output(&self.output, self.output_as_stream)?;
 
         let mut reader = create_reader(itype, Box::leak(inputsource))?.unwrap();
         let mut writer = create_writer(otype, Box::leak(outputsource))?.unwrap();
@@ -82,9 +82,7 @@ fn build_arg_group(command: clap::Command) -> clap::Command {
 
 fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
     use anyhow::anyhow;
-    if f.is_none() && t.is_none() {
-        panic!("Unexpected error")
-    } else if let Some(t) = &t {
+    if let Some(t) = &t {
         Ok(t.clone())
     } else if let Some(insider) = &f {
         use std::path::Path;
@@ -102,38 +100,36 @@ fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
     }
 }
 
-fn get_input(f: &Option<String>, as_stream: bool) -> Box<dyn ReadBuffer> {
-    if f.is_none() && !as_stream {
-        panic!("Unexpected error")
-    } else if as_stream {
+fn get_input(f: &Option<String>, as_stream: bool) -> Result<Box<dyn ReadBuffer>> {
+    if as_stream {
         let lock = std::io::stdin();
         #[cfg(any(target_family = "unix", target_family = "wasi"))]
         unsafe {
             use std::os::unix::io::{AsRawFd, FromRawFd};
-            Box::new(std::fs::File::from_raw_fd(lock.as_raw_fd()))
+            Ok(Box::new(std::fs::File::from_raw_fd(lock.as_raw_fd())))
         }
 
         #[cfg(target_family = "windows")]
         unsafe {
             use std::os::windows::io::{AsRawHandle, FromRawHandle};
-            Box::new(std::fs::File::from_raw_handle(lock.as_raw_handle()))
+            Ok(Box::new(std::fs::File::from_raw_handle(
+                lock.as_raw_handle(),
+            )))
         }
     } else if let Some(inner) = &f {
-        Box::new(std::fs::File::open(&inner).unwrap())
+        Ok(Box::new(std::fs::File::open(&inner).unwrap()))
     } else {
-        panic!("Unexpected error")
+        Err(anyhow::anyhow!("Unexpected error"))
     }
 }
 
-fn get_output(f: &Option<String>, as_stream: bool) -> Box<dyn WriteBuffer> {
-    if f.is_none() && !as_stream {
-        panic!("Unexpected error")
-    } else if as_stream {
-        Box::new(std::io::stdout())
+fn get_output(f: &Option<String>, as_stream: bool) -> Result<Box<dyn WriteBuffer>> {
+    if as_stream {
+        Ok(Box::new(std::io::stdout()))
     } else if let Some(inner) = &f {
-        Box::new(std::fs::File::create(&inner).unwrap())
+        Ok(Box::new(std::fs::File::create(&inner)?))
     } else {
-        panic!("Unexpected error")
+        Err(anyhow::anyhow!("Unexpected error"))
     }
 }
 
@@ -298,13 +294,8 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn infer_panic() {
-        _ = infer_type(&None, &None);
-    }
-
-    #[test]
     fn infer_no_type_given() -> Result<()> {
+        assert!(infer_type(&None, &None).is_err());
         assert_eq!(
             infer_type(&Some("whatever".to_string()), &None)
                 .unwrap_err()
@@ -365,6 +356,58 @@ mod tests {
             infer_type(&Some("file.parquet".to_string()), &Some(Type::Xlsx))?,
             Type::Xlsx
         );
+        Ok(())
+    }
+
+    struct TestFile<P: AsRef<std::path::Path>> {
+        path: P,
+    }
+
+    impl<P: AsRef<std::path::Path>> Drop for TestFile<P> {
+        fn drop(&mut self) {
+            _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    #[test]
+    fn get_input_func() -> Result<()> {
+        assert!(get_input(&None, false).is_err());
+        _ = get_input(&None, true)?;
+
+        {
+            const FAKE_FILE_NAME: &str = "fake_file";
+            _ = std::fs::File::create(FAKE_FILE_NAME)?;
+            let _fake = TestFile {
+                path: FAKE_FILE_NAME,
+            };
+
+            _ = get_input(&Some(FAKE_FILE_NAME.to_string()), true)?;
+            _ = get_input(&Some(FAKE_FILE_NAME.to_string()), false)?;
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn get_output_func() -> Result<()> {
+        assert!(get_output(&None, false).is_err());
+        _ = get_output(&None, true)?;
+
+        let run_test = |run: &dyn Fn(String) -> Result<()>| -> Result<()> {
+            const FAKE_FILE_NAME: &str = "fake_file";
+            let _fake = TestFile {
+                path: FAKE_FILE_NAME,
+            };
+            run(FAKE_FILE_NAME.to_string())
+        };
+
+        run_test(&|f: String| {
+            get_output(&Some(f.to_string()), true)?;
+            Ok(())
+        })?;
+        run_test(&|f: String| {
+            get_output(&Some(f.to_string()), false)?;
+            Ok(())
+        })?;
         Ok(())
     }
 }

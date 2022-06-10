@@ -20,10 +20,7 @@ pub struct Options {
     pub has_headers: bool,
 }
 
-pub(crate) fn create_writer(
-    writer: impl WriteBuffer,
-    options: &Options,
-) -> Result<impl Writer> {
+pub(crate) fn create_writer(writer: impl WriteBuffer, options: &Options) -> Result<impl Writer> {
     use arrow::csv::writer::WriterBuilder;
     let builder = WriterBuilder::new().has_headers(options.has_headers);
     Ok(CsvWriter {
