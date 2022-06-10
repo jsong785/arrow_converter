@@ -1,9 +1,9 @@
-pub mod convert_from_arrow;
-pub mod convert_to_arrow;
+pub mod reader;
+pub mod writer;
 pub mod types;
 
-use crate::convert_from_arrow::{WriteBuffer, Writer};
-use crate::convert_to_arrow::{ReadBuffer, Reader};
+use crate::writer::{WriteBuffer, Writer};
+use crate::reader::{ReadBuffer, Reader};
 use anyhow::Result;
 use clap::Parser;
 use types::Type;
@@ -141,7 +141,7 @@ pub fn create_reader<'a, R: 'a + std::io::Read + std::io::Seek>(
     t: Type,
     reader: R,
 ) -> Result<Option<Box<dyn 'a + Reader>>> {
-    use crate::convert_to_arrow::{csv, json};
+    use crate::reader::{csv, json};
     match t {
         Type::Csv => Ok(Some(Box::new(csv::create_reader(
             reader,
@@ -160,7 +160,7 @@ pub fn create_writer<'a, W: 'a + std::io::Write>(
     t: Type,
     writer: W,
 ) -> Result<Option<Box<dyn 'a + Writer>>> {
-    use crate::convert_from_arrow::{csv, json};
+    use crate::writer::{csv, json};
     match t {
         Type::Csv => Ok(Some(Box::new(csv::create_writer(
             writer,
