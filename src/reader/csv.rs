@@ -4,7 +4,6 @@ use arrow::datatypes::SchemaRef;
 
 #[derive(Default, Debug)]
 pub struct Options {
-    pub file_name: String,
     pub schema: Option<SchemaRef>,
     pub has_header: bool,
 }

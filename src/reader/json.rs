@@ -5,7 +5,6 @@ use arrow::json::reader::ReaderBuilder;
 
 #[derive(Default, Debug)]
 pub struct Options {
-    pub file_name: String,
     pub schema: Option<SchemaRef>,
 }
 
