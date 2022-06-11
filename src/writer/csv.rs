@@ -1,5 +1,6 @@
 use super::{WriteBuffer, Writer};
 use anyhow::Result;
+use serde::{Deserialize, Serialize};
 
 pub(crate) struct CsvWriter<W: WriteBuffer> {
     writer: arrow::csv::writer::Writer<W>,
@@ -15,7 +16,7 @@ impl<W: WriteBuffer> Writer for CsvWriter<W> {
     }
 }
 
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Deserialize, Serialize)]
 pub struct Options {
     pub has_headers: bool,
 }
