@@ -38,8 +38,10 @@ impl Cli {
         let inputsource = get_input(&self.input, self.input_as_stream)?;
         let outputsource = get_output(&self.output, self.output_as_stream)?;
 
-        let mut reader = create_reader(itype, Box::leak(inputsource))?.unwrap();
-        let mut writer = create_writer(otype, Box::leak(outputsource))?.unwrap();
+        let mut reader =
+            create_reader(itype, Box::leak(inputsource), self.input_options.clone())?.unwrap();
+        let mut writer =
+            create_writer(otype, Box::leak(outputsource), self.output_options.clone())?.unwrap();
         pipe(&mut reader, &mut writer)
     }
 }
@@ -78,6 +80,11 @@ fn build_arg_group(command: clap::Command) -> clap::Command {
                 .arg("output-as-stream")
                 .requires("output-type"),
         )
+        .group(
+            ArgGroup::new("input-as-stream-gotcha")
+                .arg("input-as-stream")
+                .requires("input-options"),
+        )
 }
 
 fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
@@ -102,6 +109,7 @@ fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
 
 fn get_input(f: &Option<String>, as_stream: bool) -> Result<Box<dyn ReadBuffer>> {
     if as_stream {
+        // this isn't correct
         let lock = std::io::stdin();
         #[cfg(any(target_family = "unix", target_family = "wasi"))]
         unsafe {
@@ -136,16 +144,28 @@ fn get_output(f: &Option<String>, as_stream: bool) -> Result<Box<dyn WriteBuffer
 pub fn create_reader<'a, R: 'a + std::io::Read + std::io::Seek>(
     t: Type,
     reader: R,
+    option: Option<String>,
 ) -> Result<Option<Box<dyn 'a + Reader>>> {
     use crate::reader::{csv, json};
     match t {
         Type::Csv => Ok(Some(Box::new(csv::create_reader(
             reader,
-            &csv::Options::default(),
+            &option.map_or_else(
+                || -> Result<csv::Options> { Ok(csv::Options::default()) },
+                |o| -> Result<csv::Options> {
+                    Ok(serde_json::from_str::<csv::Options>(&o)?)
+                },
+            )?,
         )?))),
-        Type::Json => Ok(Some(Box::new(json::create_reader(
+        Type::Json => 
+            Ok(Some(Box::new(json::create_reader(
             reader,
-            &json::Options::default(),
+            &option.map_or_else(
+                || -> Result<json::Options> { Ok(json::Options::default()) },
+                |o| -> Result<json::Options> {
+                    Ok(serde_json::from_str::<json::Options>(&o)?)
+                },
+            )?,
         )?))),
         Type::Xlsx => Ok(None),
         Type::Parquet => Ok(None),
@@ -155,12 +175,18 @@ pub fn create_reader<'a, R: 'a + std::io::Read + std::io::Seek>(
 pub fn create_writer<'a, W: 'a + std::io::Write>(
     t: Type,
     writer: W,
+    option: Option<String>,
 ) -> Result<Option<Box<dyn 'a + Writer>>> {
     use crate::writer::{csv, json};
     match t {
         Type::Csv => Ok(Some(Box::new(csv::create_writer(
             writer,
-            &csv::Options::default(),
+            &option.map_or_else(
+                || -> Result<csv::Options> { Ok(csv::Options::default()) },
+                |o| -> Result<csv::Options> {
+                    Ok(serde_json::from_str::<csv::Options>(&o)?)
+                },
+            )?,
         )?))),
         Type::Json => Ok(Some(Box::new(json::create_writer(writer)?))),
         Type::Xlsx => Ok(None),

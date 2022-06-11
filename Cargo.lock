@@ -49,6 +49,7 @@ dependencies = [
  "arrow",
  "clap",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -3,7 +3,7 @@ use anyhow::Result;
 use arrow::datatypes::Schema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Debug, Deserialize, Serialize)]
+#[derive( Default, Debug, Deserialize, Serialize)]
 pub struct Options {
     pub schema: Option<Schema>,
     pub has_header: bool,
@@ -20,6 +20,6 @@ pub(crate) fn create_reader(
         None => build.infer_schema(Some(1_usize)),
     };
     Ok(super::ArrowAdapter {
-        inner: build.build(reader)?,
+        inner: build.build(reader)?
     })
 }
