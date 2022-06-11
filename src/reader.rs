@@ -3,13 +3,28 @@ pub mod json;
 
 use anyhow::Result;
 
-pub trait Reader: std::iter::Iterator<Item = Result<arrow::record_batch::RecordBatch>> {}
 pub trait ReadBufferNoSeek: std::io::Read {}
 impl<T: std::io::Read + std::io::Seek> ReadBuffer for T {}
 pub trait ReadBuffer: ReadBufferNoSeek + std::io::Seek {}
 impl<T: std::io::Read> ReadBufferNoSeek for T {}
 
-pub(self) struct ArrowAdapter<
+pub struct ReaderWrap<B: ReadBufferNoSeek> {
+    reader: Types<B>,
+}
+
+impl<B: ReadBufferNoSeek> Iterator for ReaderWrap<B> {
+    type Item = Result<arrow::record_batch::RecordBatch>;
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.reader {
+            Types::Csv(c) => c.next(),
+            Types::Json(j) => j.next(),
+        }
+    }
+}
+
+trait Reader: std::iter::Iterator<Item = Result<arrow::record_batch::RecordBatch>> {}
+
+struct ArrowAdapter<
     T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::RecordBatch>>,
 > {
     inner: T,
@@ -37,21 +52,7 @@ impl<T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::Rec
 {
 }
 
-pub(self) enum Types<B: ReadBufferNoSeek> {
+enum Types<B: ReadBufferNoSeek> {
     Csv(ArrowAdapter<csv::Reader<B>>),
     Json(ArrowAdapter<json::Reader<B>>),
-}
-
-pub struct ReaderWrap<B: ReadBufferNoSeek> {
-    pub(self) reader: Types<B>,
-}
-
-impl<B: ReadBufferNoSeek> Iterator for ReaderWrap<B> {
-    type Item = Result<arrow::record_batch::RecordBatch>;
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.reader {
-            Types::Csv(c) => c.next(),
-            Types::Json(j) => j.next(),
-        }
-    }
 }
