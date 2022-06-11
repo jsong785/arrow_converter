@@ -2,6 +2,8 @@ use super::{WriteBuffer, Writer};
 use anyhow::Result;
 use arrow::json::writer::LineDelimitedWriter;
 
+pub use arrow::json::writer::LineDelimitedWriter as DWriter;
+
 pub(crate) struct JsonWriter<W: WriteBuffer> {
     writer: LineDelimitedWriter<W>,
 }
@@ -16,8 +18,8 @@ impl<W: WriteBuffer> Writer for JsonWriter<W> {
     }
 }
 
-pub(crate) fn create_writer(writer: impl WriteBuffer) -> Result<impl Writer> {
-    Ok(JsonWriter {
-        writer: LineDelimitedWriter::new(writer),
+pub(crate) fn create_writer<W: WriteBuffer>(writer: W) -> Result<super::WriterWrap<W>> {
+    Ok(super::WriterWrap {
+        writer: super::Writers::Json(LineDelimitedWriter::new(writer)),
     })
 }

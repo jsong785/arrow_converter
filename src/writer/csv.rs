@@ -2,6 +2,8 @@ use super::{WriteBuffer, Writer};
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
+pub use arrow::csv::writer::Writer as CWriter;
+
 pub(crate) struct CsvWriter<W: WriteBuffer> {
     writer: arrow::csv::writer::Writer<W>,
 }
@@ -21,10 +23,13 @@ pub struct Options {
     pub has_headers: bool,
 }
 
-pub(crate) fn create_writer(writer: impl WriteBuffer, options: &Options) -> Result<impl Writer> {
+pub(crate) fn create_writer<W: WriteBuffer>(
+    writer: W,
+    options: &Options,
+) -> Result<super::WriterWrap<W>> {
     use arrow::csv::writer::WriterBuilder;
     let builder = WriterBuilder::new().has_headers(options.has_headers);
-    Ok(CsvWriter {
-        writer: builder.build(writer),
+    Ok(super::WriterWrap {
+        writer: super::Writers::Csv(builder.build(writer)),
     })
 }

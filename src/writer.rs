@@ -9,3 +9,35 @@ pub trait Writer {
 
 pub trait WriteBuffer: std::io::Write {}
 impl<T: std::io::Write> WriteBuffer for T {}
+
+pub(self) enum Writers<W: WriteBuffer> {
+    Csv(csv::CWriter<W>),
+    Json(json::DWriter<W>),
+}
+
+pub struct WriterWrap<B: WriteBuffer> {
+    pub(self) writer: Writers<B>,
+}
+impl<B: WriteBuffer> Writer for WriterWrap<B> {
+    fn write(&mut self, batches: arrow::record_batch::RecordBatch) -> Result<()> {
+        match &mut self.writer {
+            Writers::Csv(c) => {
+                c.write(&batches)?;
+                Ok(())
+            }
+            Writers::Json(j) => {
+                j.write(batches)?;
+                Ok(())
+            }
+        }
+    }
+    fn finish(&mut self) -> Result<()> {
+        match &mut self.writer {
+            Writers::Csv(_) => Ok(()),
+            Writers::Json(j) => {
+                j.finish()?;
+                Ok(())
+            }
+        }
+    }
+}

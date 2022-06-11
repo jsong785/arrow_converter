@@ -2,8 +2,8 @@ pub mod reader;
 pub mod types;
 pub mod writer;
 
-use crate::reader::{ReadBuffer, Reader};
-use crate::writer::{WriteBuffer, Writer};
+use crate::reader::{ReadBuffer, ReaderWrap};
+use crate::writer::{WriteBuffer, WriterWrap};
 use anyhow::Result;
 use clap::Parser;
 use types::Type;
@@ -38,10 +38,8 @@ impl Cli {
         let inputsource = get_input(&self.input, self.input_as_stream)?;
         let outputsource = get_output(&self.output, self.output_as_stream)?;
 
-        let mut reader =
-            create_reader(itype, Box::leak(inputsource), self.input_options.clone())?.unwrap();
-        let mut writer =
-            create_writer(otype, Box::leak(outputsource), self.output_options.clone())?.unwrap();
+        let mut reader = create_reader(itype, inputsource, self.input_options.clone())?.unwrap();
+        let mut writer = create_writer(otype, outputsource, self.output_options.clone())?.unwrap();
         pipe(&mut reader, &mut writer)
     }
 }
@@ -53,7 +51,8 @@ pub fn run_cli() -> Result<()> {
     Cli::from_arg_matches(&command.try_get_matches()?)?.execute()
 }
 
-fn pipe(r: &mut Box<dyn Reader>, w: &mut Box<dyn Writer>) -> Result<()> {
+fn pipe<R: ReadBuffer, W: WriteBuffer>(r: &mut ReaderWrap<R>, w: &mut WriterWrap<W>) -> Result<()> {
+    use writer::Writer;
     r.try_for_each(|batch| w.write(batch?))
 }
 
@@ -141,54 +140,47 @@ fn get_output(f: &Option<String>, as_stream: bool) -> Result<Box<dyn WriteBuffer
     }
 }
 
-pub fn create_reader<'a, R: 'a + std::io::Read + std::io::Seek>(
+pub fn create_reader<'a, R: 'a + ReadBuffer>(
     t: Type,
     reader: R,
     option: Option<String>,
-) -> Result<Option<Box<dyn 'a + Reader>>> {
+) -> Result<Option<ReaderWrap<R>>> {
     use crate::reader::{csv, json};
     match t {
-        Type::Csv => Ok(Some(Box::new(csv::create_reader(
+        Type::Csv => Ok(Some(csv::create_reader(
             reader,
             &option.map_or_else(
                 || -> Result<csv::Options> { Ok(csv::Options::default()) },
-                |o| -> Result<csv::Options> {
-                    Ok(serde_json::from_str::<csv::Options>(&o)?)
-                },
+                |o| -> Result<csv::Options> { Ok(serde_json::from_str::<csv::Options>(&o)?) },
             )?,
-        )?))),
-        Type::Json => 
-            Ok(Some(Box::new(json::create_reader(
+        )?)),
+        Type::Json => Ok(Some(json::create_reader(
             reader,
             &option.map_or_else(
                 || -> Result<json::Options> { Ok(json::Options::default()) },
-                |o| -> Result<json::Options> {
-                    Ok(serde_json::from_str::<json::Options>(&o)?)
-                },
+                |o| -> Result<json::Options> { Ok(serde_json::from_str::<json::Options>(&o)?) },
             )?,
-        )?))),
+        )?)),
         Type::Xlsx => Ok(None),
         Type::Parquet => Ok(None),
     }
 }
 
-pub fn create_writer<'a, W: 'a + std::io::Write>(
+pub fn create_writer<'a, W: 'a + WriteBuffer>(
     t: Type,
     writer: W,
     option: Option<String>,
-) -> Result<Option<Box<dyn 'a + Writer>>> {
+) -> Result<Option<WriterWrap<W>>> {
     use crate::writer::{csv, json};
     match t {
-        Type::Csv => Ok(Some(Box::new(csv::create_writer(
+        Type::Csv => Ok(Some(csv::create_writer(
             writer,
             &option.map_or_else(
                 || -> Result<csv::Options> { Ok(csv::Options::default()) },
-                |o| -> Result<csv::Options> {
-                    Ok(serde_json::from_str::<csv::Options>(&o)?)
-                },
+                |o| -> Result<csv::Options> { Ok(serde_json::from_str::<csv::Options>(&o)?) },
             )?,
-        )?))),
-        Type::Json => Ok(Some(Box::new(json::create_writer(writer)?))),
+        )?)),
+        Type::Json => Ok(Some(json::create_writer(writer)?)),
         Type::Xlsx => Ok(None),
         Type::Parquet => Ok(None),
     }
@@ -246,10 +238,10 @@ mod tests {
             "\n"
         );
 
-        let mut reader = create_reader(Type::Json, Cursor::new(js))?.unwrap();
+        let mut reader = create_reader(Type::Json, Cursor::new(js), None)?.unwrap();
 
         let buffer = TestBuffer::new(Vec::new());
-        let mut writer = create_writer(Type::Json, buffer.clone())?.unwrap();
+        let mut writer = create_writer(Type::Json, buffer.clone(), None)?.unwrap();
 
         pipe(&mut reader, &mut writer)?;
         assert_eq!(
@@ -269,10 +261,10 @@ mod tests {
         );
         let expected = "1,2.0,foo,false\n4,-5.5,,true\n";
 
-        let mut reader = create_reader(Type::Json, Cursor::new(js))?.unwrap();
+        let mut reader = create_reader(Type::Json, Cursor::new(js), None)?.unwrap();
 
         let buffer = TestBuffer::new(Vec::new());
-        let mut writer = create_writer(Type::Csv, buffer.clone())?.unwrap();
+        let mut writer = create_writer(Type::Csv, buffer.clone(), None)?.unwrap();
 
         pipe(&mut reader, &mut writer)?;
         assert_eq!(
@@ -286,10 +278,10 @@ mod tests {
     fn csv_to_csv() -> Result<()> {
         let csv = "1,2.0,foo,false\n4,-5.5,,true\n";
 
-        let mut reader = create_reader(Type::Csv, Cursor::new(csv))?.unwrap();
+        let mut reader = create_reader(Type::Csv, Cursor::new(csv), None)?.unwrap();
 
         let buffer = TestBuffer::new(Vec::new());
-        let mut writer = create_writer(Type::Csv, buffer.clone())?.unwrap();
+        let mut writer = create_writer(Type::Csv, buffer.clone(), None)?.unwrap();
 
         pipe(&mut reader, &mut writer)?;
         assert_eq!(csv, std::str::from_utf8(&buffer.writer.borrow()).unwrap());
@@ -306,10 +298,10 @@ mod tests {
             "\n"
         );
 
-        let mut reader = create_reader(Type::Csv, Cursor::new(csv))?.unwrap();
+        let mut reader = create_reader(Type::Csv, Cursor::new(csv), None)?.unwrap();
 
         let buffer = TestBuffer::new(Vec::new());
-        let mut writer = create_writer(Type::Json, buffer.clone())?.unwrap();
+        let mut writer = create_writer(Type::Json, buffer.clone(), None)?.unwrap();
 
         pipe(&mut reader, &mut writer)?;
         assert_eq!(
