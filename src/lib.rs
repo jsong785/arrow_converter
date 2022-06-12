@@ -1,9 +1,11 @@
+pub mod input;
+pub mod output;
 pub mod reader;
 pub mod types;
 pub mod writer;
 
-use crate::reader::{ReadBuffer, ReaderWrap};
-use crate::writer::{WriteBuffer, WriterWrap};
+use crate::reader::{ReadBuffer, Readers};
+use crate::writer::{WriteBuffer, Writers};
 use anyhow::Result;
 use clap::Parser;
 use types::Type;
@@ -51,7 +53,7 @@ pub fn run_cli() -> Result<()> {
     Cli::from_arg_matches(&command.try_get_matches()?)?.execute()
 }
 
-fn pipe<R: ReadBuffer, W: WriteBuffer>(r: &mut ReaderWrap<R>, w: &mut WriterWrap<W>) -> Result<()> {
+fn pipe<R: ReadBuffer, W: WriteBuffer>(r: &mut Readers<R>, w: &mut Writers<W>) -> Result<()> {
     use writer::Writer;
     r.try_for_each(|batch| w.write(batch?))
 }
@@ -106,35 +108,21 @@ fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
     }
 }
 
-fn get_input(f: &Option<String>, as_stream: bool) -> Result<Box<dyn ReadBuffer>> {
+fn get_input(f: &Option<String>, as_stream: bool) -> Result<input::InputSource> {
     if as_stream {
-        // this isn't correct
-        let lock = std::io::stdin();
-        #[cfg(any(target_family = "unix", target_family = "wasi"))]
-        unsafe {
-            use std::os::unix::io::{AsRawFd, FromRawFd};
-            Ok(Box::new(std::fs::File::from_raw_fd(lock.as_raw_fd())))
-        }
-
-        #[cfg(target_family = "windows")]
-        unsafe {
-            use std::os::windows::io::{AsRawHandle, FromRawHandle};
-            Ok(Box::new(std::fs::File::from_raw_handle(
-                lock.as_raw_handle(),
-            )))
-        }
+        Ok(input::InputSource::Stream(std::io::stdin()))
     } else if let Some(inner) = &f {
-        Ok(Box::new(std::fs::File::open(&inner).unwrap()))
+        Ok(input::InputSource::File(std::fs::File::open(&inner)?))
     } else {
         Err(anyhow::anyhow!("Unexpected error"))
     }
 }
 
-fn get_output(f: &Option<String>, as_stream: bool) -> Result<Box<dyn WriteBuffer>> {
+fn get_output(f: &Option<String>, as_stream: bool) -> Result<output::OutputSource> {
     if as_stream {
-        Ok(Box::new(std::io::stdout()))
+        Ok(output::OutputSource::Stream(std::io::stdout()))
     } else if let Some(inner) = &f {
-        Ok(Box::new(std::fs::File::create(&inner)?))
+        Ok(output::OutputSource::File(std::fs::File::create(&inner)?))
     } else {
         Err(anyhow::anyhow!("Unexpected error"))
     }
@@ -144,7 +132,7 @@ pub fn create_reader<'a, R: 'a + ReadBuffer>(
     t: Type,
     reader: R,
     option: Option<String>,
-) -> Result<Option<ReaderWrap<R>>> {
+) -> Result<Option<Readers<R>>> {
     use crate::reader::{csv, json};
     match t {
         Type::Csv => Ok(Some(csv::create_reader(
@@ -170,7 +158,7 @@ pub fn create_writer<'a, W: 'a + WriteBuffer>(
     t: Type,
     writer: W,
     option: Option<String>,
-) -> Result<Option<WriterWrap<W>>> {
+) -> Result<Option<Writers<W>>> {
     use crate::writer::{csv, json};
     match t {
         Type::Csv => Ok(Some(csv::create_writer(

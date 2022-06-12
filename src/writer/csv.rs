@@ -26,10 +26,8 @@ pub struct Options {
 pub(crate) fn create_writer<W: WriteBuffer>(
     writer: W,
     options: &Options,
-) -> Result<super::WriterWrap<W>> {
+) -> Result<super::Writers<W>> {
     use arrow::csv::writer::WriterBuilder;
     let builder = WriterBuilder::new().has_headers(options.has_headers);
-    Ok(super::WriterWrap {
-        writer: super::Writers::Csv(builder.build(writer)),
-    })
+    Ok(super::Writers::Csv(builder.build(writer)))
 }

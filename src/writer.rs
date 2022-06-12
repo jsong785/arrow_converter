@@ -10,12 +10,13 @@ pub trait Writer {
 pub trait WriteBuffer: std::io::Write {}
 impl<T: std::io::Write> WriteBuffer for T {}
 
-pub struct WriterWrap<B: WriteBuffer> {
-    writer: Writers<B>,
+pub enum Writers<W: WriteBuffer> {
+    Csv(csv::CWriter<W>),
+    Json(json::DWriter<W>),
 }
-impl<B: WriteBuffer> Writer for WriterWrap<B> {
+impl<B: WriteBuffer> Writer for Writers<B> {
     fn write(&mut self, batches: arrow::record_batch::RecordBatch) -> Result<()> {
-        match &mut self.writer {
+        match self {
             Writers::Csv(c) => {
                 c.write(&batches)?;
                 Ok(())
@@ -27,7 +28,7 @@ impl<B: WriteBuffer> Writer for WriterWrap<B> {
         }
     }
     fn finish(&mut self) -> Result<()> {
-        match &mut self.writer {
+        match self {
             Writers::Csv(_) => Ok(()),
             Writers::Json(j) => {
                 j.finish()?;
@@ -35,9 +36,4 @@ impl<B: WriteBuffer> Writer for WriterWrap<B> {
             }
         }
     }
-}
-
-enum Writers<W: WriteBuffer> {
-    Csv(csv::CWriter<W>),
-    Json(json::DWriter<W>),
 }

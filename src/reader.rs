@@ -8,23 +8,23 @@ impl<T: std::io::Read + std::io::Seek> ReadBuffer for T {}
 pub trait ReadBuffer: ReadBufferNoSeek + std::io::Seek {}
 impl<T: std::io::Read> ReadBufferNoSeek for T {}
 
-pub struct ReaderWrap<B: ReadBufferNoSeek> {
-    reader: Types<B>,
+pub enum Readers<B: ReadBufferNoSeek> {
+    Csv(ArrowAdapter<csv::Reader<B>>),
+    Json(ArrowAdapter<json::Reader<B>>),
 }
-
-impl<B: ReadBufferNoSeek> Iterator for ReaderWrap<B> {
+impl<B: ReadBufferNoSeek> Iterator for Readers<B> {
     type Item = Result<arrow::record_batch::RecordBatch>;
     fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.reader {
-            Types::Csv(c) => c.next(),
-            Types::Json(j) => j.next(),
+        match self {
+            Readers::Csv(c) => c.next(),
+            Readers::Json(j) => j.next(),
         }
     }
 }
 
 trait Reader: std::iter::Iterator<Item = Result<arrow::record_batch::RecordBatch>> {}
 
-struct ArrowAdapter<
+pub struct ArrowAdapter<
     T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::RecordBatch>>,
 > {
     inner: T,
@@ -50,9 +50,4 @@ impl<T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::Rec
 impl<T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::RecordBatch>>> Reader
     for ArrowAdapter<T>
 {
-}
-
-enum Types<B: ReadBufferNoSeek> {
-    Csv(ArrowAdapter<csv::Reader<B>>),
-    Json(ArrowAdapter<json::Reader<B>>),
 }

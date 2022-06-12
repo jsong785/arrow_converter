@@ -18,8 +18,6 @@ impl<W: WriteBuffer> Writer for JsonWriter<W> {
     }
 }
 
-pub(crate) fn create_writer<W: WriteBuffer>(writer: W) -> Result<super::WriterWrap<W>> {
-    Ok(super::WriterWrap {
-        writer: super::Writers::Json(LineDelimitedWriter::new(writer)),
-    })
+pub(crate) fn create_writer<W: WriteBuffer>(writer: W) -> Result<super::Writers<W>> {
+    Ok(super::Writers::Json(LineDelimitedWriter::new(writer)))
 }
