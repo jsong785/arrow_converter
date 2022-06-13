@@ -14,9 +14,7 @@ use types::Type;
 #[clap(author, version, about, long_about = None)]
 struct Cli {
     #[clap(short, long)]
-    input: Option<String>,
-    #[clap(long)]
-    input_as_stream: bool,
+    input: String,
     #[clap(long, arg_enum)]
     input_type: Option<Type>,
     #[clap(long)]
@@ -34,10 +32,10 @@ struct Cli {
 
 impl Cli {
     fn execute(&self) -> Result<()> {
-        let itype = infer_type(&self.input, &self.input_type)?;
+        let itype = infer_type(&Some(self.input.clone()), &self.input_type)?;
         let otype = infer_type(&self.output, &self.output_type)?;
 
-        let inputsource = get_input(&self.input, self.input_as_stream)?;
+        let inputsource = get_input(&Some(self.input.clone()))?;
         let outputsource = get_output(&self.output, self.output_as_stream)?;
 
         let mut reader = create_reader(itype, inputsource, self.input_options.clone())?.unwrap();
@@ -61,11 +59,6 @@ fn pipe<R: ReadBuffer, W: WriteBuffer>(r: &mut Readers<R>, w: &mut Writers<W>) -
 fn build_arg_group(command: clap::Command) -> clap::Command {
     use clap::ArgGroup;
     command
-        .group(
-            ArgGroup::new("input_group")
-                .args(&["input", "input-as-stream"])
-                .required(true),
-        )
         .group(
             ArgGroup::new("output_group")
                 .args(&["output", "output-as-stream"])
@@ -108,10 +101,8 @@ fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
     }
 }
 
-fn get_input(f: &Option<String>, as_stream: bool) -> Result<input::InputSource> {
-    if as_stream {
-        Ok(input::InputSource::Stream(std::io::stdin()))
-    } else if let Some(inner) = &f {
+fn get_input(f: &Option<String>) -> Result<input::InputSource> {
+    if let Some(inner) = &f {
         Ok(input::InputSource::File(std::fs::File::open(&inner)?))
     } else {
         Err(anyhow::anyhow!("Unexpected error"))
@@ -377,9 +368,7 @@ mod tests {
 
     #[test]
     fn get_input_func() -> Result<()> {
-        assert!(get_input(&None, false).is_err());
-        _ = get_input(&None, true)?;
-
+        assert!(get_input(&None).is_err());
         {
             const FAKE_FILE_NAME: &str = "fake_file";
             _ = std::fs::File::create(FAKE_FILE_NAME)?;
@@ -387,8 +376,8 @@ mod tests {
                 path: FAKE_FILE_NAME,
             };
 
-            _ = get_input(&Some(FAKE_FILE_NAME.to_string()), true)?;
-            _ = get_input(&Some(FAKE_FILE_NAME.to_string()), false)?;
+            _ = get_input(&Some(FAKE_FILE_NAME.to_string()))?;
+            _ = get_input(&Some(FAKE_FILE_NAME.to_string()))?;
         }
         Ok(())
     }

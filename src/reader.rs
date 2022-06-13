@@ -5,6 +5,7 @@ use anyhow::Result;
 
 pub trait ReadBufferNoSeek: std::io::Read {}
 impl<T: std::io::Read + std::io::Seek> ReadBuffer for T {}
+
 pub trait ReadBuffer: ReadBufferNoSeek + std::io::Seek {}
 impl<T: std::io::Read> ReadBufferNoSeek for T {}
 
