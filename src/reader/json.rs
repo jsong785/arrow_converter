@@ -15,12 +15,11 @@ pub(crate) fn create_reader<R: ReadBuffer>(
     reader: R,
     options: &Options,
 ) -> Result<super::Readers<R>> {
-    let mut build = ReaderBuilder::new();
-    build = match &options.schema {
+    let build = ReaderBuilder::new();
+    let res = match &options.schema {
         Some(schema) => build.with_schema(std::sync::Arc::new(schema.clone())),
         None => build.infer_schema(Some(1_usize)),
-    };
-    Ok(super::Readers::Json(super::ArrowAdapter {
-        inner: build.build(reader)?,
-    }))
+    }
+    .build(reader)?;
+    Ok(super::Readers::Json(super::ArrowAdapter { inner: res }))
 }

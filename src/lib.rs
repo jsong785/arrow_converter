@@ -14,7 +14,7 @@ use types::Type;
 #[clap(author, version, about, long_about = None)]
 struct Cli {
     #[clap(short, long)]
-    input: String,
+    input: Option<String>,
     #[clap(long, arg_enum)]
     input_type: Option<Type>,
     #[clap(long)]
@@ -22,8 +22,6 @@ struct Cli {
 
     #[clap(short, long)]
     output: Option<String>,
-    #[clap(long)]
-    output_as_stream: bool,
     #[clap(long, arg_enum)]
     output_type: Option<Type>,
     #[clap(long)]
@@ -32,11 +30,11 @@ struct Cli {
 
 impl Cli {
     fn execute(&self) -> Result<()> {
-        let itype = infer_type(&Some(self.input.clone()), &self.input_type)?;
+        let itype = infer_type(&self.input, &self.input_type)?;
         let otype = infer_type(&self.output, &self.output_type)?;
 
-        let inputsource = get_input(&Some(self.input.clone()))?;
-        let outputsource = get_output(&self.output, self.output_as_stream)?;
+        let inputsource = get_input(&self.input)?;
+        let outputsource = get_output(&self.output)?;
 
         let mut reader = create_reader(itype, inputsource, self.input_options.clone())?.unwrap();
         let mut writer = create_writer(otype, outputsource, self.output_options.clone())?.unwrap();
@@ -47,38 +45,12 @@ impl Cli {
 pub fn run_cli() -> Result<()> {
     use clap::CommandFactory;
     use clap::FromArgMatches;
-    let command = build_arg_group(Cli::command());
-    Cli::from_arg_matches(&command.try_get_matches()?)?.execute()
+    Cli::from_arg_matches(&Cli::command().try_get_matches()?)?.execute()
 }
 
 fn pipe<R: ReadBuffer, W: WriteBuffer>(r: &mut Readers<R>, w: &mut Writers<W>) -> Result<()> {
     use writer::Writer;
     r.try_for_each(|batch| w.write(batch?))
-}
-
-fn build_arg_group(command: clap::Command) -> clap::Command {
-    use clap::ArgGroup;
-    command
-        .group(
-            ArgGroup::new("output_group")
-                .args(&["output", "output-as-stream"])
-                .required(true),
-        )
-        .group(
-            ArgGroup::new("input_group_stream")
-                .arg("input-as-stream")
-                .requires("input-type"),
-        )
-        .group(
-            ArgGroup::new("output_group_stream")
-                .arg("output-as-stream")
-                .requires("output-type"),
-        )
-        .group(
-            ArgGroup::new("input-as-stream-gotcha")
-                .arg("input-as-stream")
-                .requires("input-options"),
-        )
 }
 
 fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
@@ -102,20 +74,16 @@ fn infer_type(f: &Option<String>, t: &Option<Type>) -> Result<Type> {
 }
 
 fn get_input(f: &Option<String>) -> Result<input::InputSource> {
-    if let Some(inner) = &f {
-        Ok(input::InputSource::File(std::fs::File::open(&inner)?))
-    } else {
-        Err(anyhow::anyhow!("Unexpected error"))
+    match f {
+        Some(inner) => Ok(input::InputSource::File(std::fs::File::open(&inner)?)),
+        None => Ok(input::InputSource::Stream(std::io::stdin())),
     }
 }
 
-fn get_output(f: &Option<String>, as_stream: bool) -> Result<output::OutputSource> {
-    if as_stream {
-        Ok(output::OutputSource::Stream(std::io::stdout()))
-    } else if let Some(inner) = &f {
-        Ok(output::OutputSource::File(std::fs::File::create(&inner)?))
-    } else {
-        Err(anyhow::anyhow!("Unexpected error"))
+fn get_output(f: &Option<String>) -> Result<output::OutputSource> {
+    match f {
+        Some(inner) => Ok(output::OutputSource::File(std::fs::File::open(&inner)?)),
+        None => Ok(output::OutputSource::Stream(std::io::stdout())),
     }
 }
 
@@ -368,7 +336,7 @@ mod tests {
 
     #[test]
     fn get_input_func() -> Result<()> {
-        assert!(get_input(&None).is_err());
+        get_input(&None)?;
         {
             const FAKE_FILE_NAME: &str = "fake_file";
             _ = std::fs::File::create(FAKE_FILE_NAME)?;
@@ -384,8 +352,7 @@ mod tests {
 
     #[test]
     fn get_output_func() -> Result<()> {
-        assert!(get_output(&None, false).is_err());
-        _ = get_output(&None, true)?;
+        _ = get_output(&None)?;
 
         let run_test = |run: &dyn Fn(String) -> Result<()>| -> Result<()> {
             const FAKE_FILE_NAME: &str = "fake_file";
@@ -396,13 +363,8 @@ mod tests {
         };
 
         run_test(&|f: String| {
-            get_output(&Some(f.to_string()), true)?;
+            get_output(&Some(f.to_string()))?;
             Ok(())
-        })?;
-        run_test(&|f: String| {
-            get_output(&Some(f.to_string()), false)?;
-            Ok(())
-        })?;
-        Ok(())
+        })
     }
 }

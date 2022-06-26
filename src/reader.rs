@@ -23,8 +23,6 @@ impl<B: ReadBufferNoSeek> Iterator for Readers<B> {
     }
 }
 
-trait Reader: std::iter::Iterator<Item = Result<arrow::record_batch::RecordBatch>> {}
-
 pub struct ArrowAdapter<
     T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::RecordBatch>>,
 > {
@@ -47,8 +45,4 @@ impl<T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::Rec
             None => None,
         }
     }
-}
-impl<T: std::iter::Iterator<Item = arrow::error::Result<arrow::record_batch::RecordBatch>>> Reader
-    for ArrowAdapter<T>
-{
 }
